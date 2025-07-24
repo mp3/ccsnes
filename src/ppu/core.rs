@@ -5,6 +5,7 @@ use crate::ppu::memory::{Vram, Cgram, Oam};
 use crate::ppu::backgrounds::BackgroundRenderer;
 use crate::ppu::sprites::SpriteRenderer;
 use crate::ppu::scrolling::ScrollingEngine;
+use crate::ppu::mode7::Mode7Renderer;
 use log::trace;
 
 const SCREEN_WIDTH: usize = 256;
@@ -23,6 +24,7 @@ pub struct Ppu {
     bg_renderer: BackgroundRenderer,
     sprite_renderer: SpriteRenderer,
     scrolling: ScrollingEngine,
+    mode7: Mode7Renderer,
     
     // Memory
     vram: Vram,
@@ -63,6 +65,7 @@ impl Ppu {
             bg_renderer: BackgroundRenderer::new(),
             sprite_renderer: SpriteRenderer::new(),
             scrolling: ScrollingEngine::new(),
+            mode7: Mode7Renderer::new(),
             vram: Vram::new(),
             cgram: Cgram::new(),
             oam: Oam::new(),
@@ -155,16 +158,53 @@ impl Ppu {
             return;
         }
         
-        // Render backgrounds
-        let bg_buffer = self.bg_renderer.render_scanline(
-            &self.vram,
-            &self.cgram,
-            &self.registers,
-            self.scanline,
-        );
+        // Check if we're in Mode 7
+        let bg_mode = self.registers.get_bg_mode();
         
-        // Copy background to scanline buffer
-        self.scanline_buffer.copy_from_slice(bg_buffer);
+        if bg_mode == 7 {
+            // Mode 7 rendering
+            self.mode7.render_scanline(
+                &self.vram,
+                &self.cgram,
+                &self.registers,
+                self.scanline,
+                &mut self.scanline_buffer,
+            );
+            
+            // Check for Mode 7 EXTBG (BG2)
+            if self.mode7.is_extbg_enabled(&self.registers) {
+                let mut extbg_buffer = vec![0u8; SCREEN_WIDTH * 4];
+                self.mode7.render_extbg_scanline(
+                    &self.vram,
+                    &self.cgram,
+                    &self.registers,
+                    self.scanline,
+                    &mut extbg_buffer,
+                );
+                
+                // Composite EXTBG onto main buffer
+                for x in 0..SCREEN_WIDTH {
+                    let offset = x * 4;
+                    if extbg_buffer[offset + 3] != 0 {
+                        self.scanline_buffer[offset] = extbg_buffer[offset];
+                        self.scanline_buffer[offset + 1] = extbg_buffer[offset + 1];
+                        self.scanline_buffer[offset + 2] = extbg_buffer[offset + 2];
+                        self.scanline_buffer[offset + 3] = extbg_buffer[offset + 3];
+                    }
+                }
+            }
+        } else {
+            // Normal background rendering
+            let bg_buffer = self.bg_renderer.render_scanline(
+                &self.vram,
+                &self.cgram,
+                &self.registers,
+                self.scanline,
+            );
+            
+            // Copy background to scanline buffer
+            self.scanline_buffer.copy_from_slice(bg_buffer);
+        }
         
         // Render sprites on top
         let main_screen = self.registers.get_main_screen_layers();
@@ -334,6 +374,9 @@ impl Ppu {
         
         // Forward to scrolling engine for scroll/window registers
         self.scrolling.write_register(address, value);
+        
+        // Forward to Mode 7 renderer for Mode 7 registers
+        self.mode7.write_register(address, value);
         
         // Handle VRAM writes
         match address {
