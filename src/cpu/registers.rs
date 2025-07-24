@@ -20,6 +20,10 @@ pub struct CpuRegisters {
     
     // Emulation mode flag (not a real register, but important for 65C816)
     pub emulation_mode: bool,
+    
+    // CPU state flags
+    pub halt: bool,
+    pub waiting_for_interrupt: bool,
 }
 
 // Processor status flags (P register)
@@ -44,6 +48,8 @@ impl CpuRegisters {
             db: 0,
             d: 0,
             emulation_mode: true, // Start in 6502 emulation mode
+            halt: false,
+            waiting_for_interrupt: false,
         }
     }
 

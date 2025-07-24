@@ -1,6 +1,8 @@
 use crate::memory::Bus;
 use crate::ppu::registers::PpuRegisters;
 use crate::ppu::renderer::Renderer;
+use crate::ppu::memory::{Vram, Cgram, Oam};
+use crate::ppu::backgrounds::BackgroundRenderer;
 use log::trace;
 
 const SCREEN_WIDTH: usize = 256;
@@ -16,6 +18,12 @@ pub struct Ppu {
     // PPU state
     pub registers: PpuRegisters,
     _renderer: Renderer,
+    bg_renderer: BackgroundRenderer,
+    
+    // Memory
+    vram: Vram,
+    cgram: Cgram,
+    oam: Oam,
     
     // Timing
     dot: u32,           // Current dot (0-340)
@@ -34,6 +42,10 @@ pub struct Ppu {
     v_counter: u16,
     latch_h: bool,
     latch_v: bool,
+    
+    // VRAM write buffer (for 16-bit writes)
+    vram_latch: u8,
+    vram_first_write: bool,
 }
 
 impl Ppu {
@@ -41,6 +53,10 @@ impl Ppu {
         Self {
             registers: PpuRegisters::new(),
             _renderer: Renderer::new(),
+            bg_renderer: BackgroundRenderer::new(),
+            vram: Vram::new(),
+            cgram: Cgram::new(),
+            oam: Oam::new(),
             dot: 0,
             scanline: 0,
             frame: 0,
@@ -51,11 +67,16 @@ impl Ppu {
             v_counter: 0,
             latch_h: false,
             latch_v: false,
+            vram_latch: 0,
+            vram_first_write: true,
         }
     }
 
     pub fn reset(&mut self) {
         self.registers = PpuRegisters::new();
+        self.vram.reset();
+        self.cgram.reset();
+        self.oam.reset();
         self.dot = 0;
         self.scanline = 0;
         self.frame = 0;
@@ -65,6 +86,8 @@ impl Ppu {
         self.v_counter = 0;
         self.latch_h = false;
         self.latch_v = false;
+        self.vram_latch = 0;
+        self.vram_first_write = true;
         
         // Clear frame buffer to black
         for pixel in self.frame_buffer.chunks_mut(4) {
@@ -122,57 +145,32 @@ impl Ppu {
             return;
         }
         
-        // Get current BG mode
-        let bg_mode = self.registers.get_bg_mode();
-        let main_screen = self.registers.get_main_screen_layers();
+        // Render backgrounds using the background renderer
+        let bg_buffer = self.bg_renderer.render_scanline(
+            &self.vram,
+            &self.cgram,
+            &self.registers,
+            self.scanline,
+        );
         
-        // Simple test pattern for now
-        // TODO: Implement actual background and sprite rendering
+        // Copy background buffer to frame buffer
+        let frame_offset = y * SCREEN_WIDTH * 4;
         for x in 0..SCREEN_WIDTH {
-            let pixel_offset = (y * SCREEN_WIDTH + x) * 4;
-            
-            // Generate a test pattern based on BG mode
-            let (r, g, b) = match bg_mode {
-                0 => {
-                    // Mode 0: 4 backgrounds, 4 colors each
-                    let color = ((x / 8) + (y / 8)) & 0x03;
-                    match color {
-                        0 => (64, 64, 64),
-                        1 => (128, 0, 0),
-                        2 => (0, 128, 0),
-                        3 => (0, 0, 128),
-                        _ => (0, 0, 0),
-                    }
-                }
-                1 => {
-                    // Mode 1: 3 backgrounds
-                    if main_screen & 0x01 != 0 {
-                        // BG1 enabled - draw gradient
-                        (x as u8, y as u8, 128)
-                    } else {
-                        (0, 0, 0)
-                    }
-                }
-                _ => {
-                    // Other modes - simple pattern
-                    let checker = ((x / 16) + (y / 16)) & 1;
-                    if checker == 1 {
-                        (192, 192, 192)
-                    } else {
-                        (64, 64, 64)
-                    }
-                }
-            };
+            let src_offset = x * 4;
+            let dst_offset = frame_offset + src_offset;
             
             // Apply brightness
             let brightness = self.registers.get_brightness();
             let factor = brightness as f32 / 15.0;
             
-            self.frame_buffer[pixel_offset] = (r as f32 * factor) as u8;
-            self.frame_buffer[pixel_offset + 1] = (g as f32 * factor) as u8;
-            self.frame_buffer[pixel_offset + 2] = (b as f32 * factor) as u8;
-            self.frame_buffer[pixel_offset + 3] = 255;
+            self.frame_buffer[dst_offset] = (bg_buffer[src_offset] as f32 * factor) as u8;
+            self.frame_buffer[dst_offset + 1] = (bg_buffer[src_offset + 1] as f32 * factor) as u8;
+            self.frame_buffer[dst_offset + 2] = (bg_buffer[src_offset + 2] as f32 * factor) as u8;
+            self.frame_buffer[dst_offset + 3] = bg_buffer[src_offset + 3];
         }
+        
+        // TODO: Implement sprite rendering
+        // TODO: Implement layer compositing with priorities
     }
 
     fn enter_vblank(&mut self) {
@@ -213,20 +211,97 @@ impl Ppu {
 
     // PPU register access
     pub fn read_register(&mut self, address: u16) -> u8 {
-        let value = self.registers.read(address);
-        
-        // Special handling for counter latch register
-        if address == 0x2137 {
-            // Latch H/V counters on read
-            if self.latch_h {
-                // Return latched H counter value
+        match address {
+            // VRAM data read
+            0x2139 => {
+                let vram_addr = self.registers.get_vram_address();
+                let value = if self.vram_first_write {
+                    // Read low byte
+                    self.vram.read(vram_addr)
+                } else {
+                    // Read high byte
+                    self.vram.read(vram_addr.wrapping_add(1))
+                };
+                
+                // Toggle first write flag
+                self.vram_first_write = !self.vram_first_write;
+                
+                // Auto-increment based on VMAIN setting
+                if (!self.vram_first_write && (self.registers.vmain & 0x80) == 0) ||
+                   (self.vram_first_write && (self.registers.vmain & 0x80) != 0) {
+                    self.auto_increment_vram();
+                }
+                
+                value
             }
-            if self.latch_v {
-                // Return latched V counter value
+            
+            // CGRAM data read
+            0x213B => {
+                let value = self.cgram.read(self.registers.cgadd);
+                self.registers.cgadd = self.registers.cgadd.wrapping_add(1);
+                value
             }
+            
+            // OAM data read
+            0x2138 => {
+                let address = self.registers.get_oam_address();
+                let value = self.oam.read(address);
+                
+                // Auto-increment OAM address
+                let new_address = (address + 1) & 0x3FF;
+                self.registers.oamaddl = (new_address & 0xFF) as u8;
+                self.registers.oamaddh = ((new_address >> 8) & 0x01) as u8 | (self.registers.oamaddh & 0x80);
+                
+                value
+            }
+            
+            // Counter latch register
+            0x2137 => {
+                // Latch H/V counters on read
+                self.latch_h = true;
+                self.latch_v = true;
+                self.registers.read(address)
+            }
+            
+            // H counter data
+            0x213C => {
+                if self.latch_h {
+                    self.latch_h = false;
+                    (self.h_counter & 0xFF) as u8
+                } else {
+                    0
+                }
+            }
+            0x213D => {
+                if self.latch_h {
+                    self.latch_h = false;
+                    ((self.h_counter >> 8) & 0x01) as u8
+                } else {
+                    0
+                }
+            }
+            
+            // V counter data
+            0x213E => {
+                if self.latch_v {
+                    self.latch_v = false;
+                    (self.v_counter & 0xFF) as u8
+                } else {
+                    0
+                }
+            }
+            0x213F => {
+                if self.latch_v {
+                    self.latch_v = false;
+                    ((self.v_counter >> 8) & 0x01) as u8
+                } else {
+                    0
+                }
+            }
+            
+            // Default register read
+            _ => self.registers.read(address),
         }
-        
-        value
     }
 
     pub fn write_register(&mut self, address: u16, value: u8) {
@@ -256,24 +331,44 @@ impl Ppu {
 
     fn write_vram_low(&mut self, value: u8) {
         let address = self.registers.get_vram_address();
-        // TODO: Actually write to VRAM
-        trace!("VRAM write low: ${:04X} = ${:02X}", address, value);
         
-        // Auto-increment based on VMAIN setting
-        if (self.registers.vmain & 0x80) == 0 {
-            self.auto_increment_vram();
+        if self.vram_first_write {
+            // First write - store in latch
+            self.vram_latch = value;
+            self.vram_first_write = false;
+        } else {
+            // Second write - write both bytes
+            self.vram.write16(address, (value as u16) << 8 | self.vram_latch as u16);
+            self.vram_first_write = true;
+            
+            // Auto-increment based on VMAIN setting
+            if (self.registers.vmain & 0x80) == 0 {
+                self.auto_increment_vram();
+            }
         }
+        
+        trace!("VRAM write low: ${:04X} = ${:02X}", address, value);
     }
 
     fn write_vram_high(&mut self, value: u8) {
         let address = self.registers.get_vram_address();
-        // TODO: Actually write to VRAM
-        trace!("VRAM write high: ${:04X} = ${:02X}", address, value);
         
-        // Auto-increment based on VMAIN setting
-        if (self.registers.vmain & 0x80) != 0 {
-            self.auto_increment_vram();
+        if self.vram_first_write {
+            // First write - store in latch
+            self.vram_latch = value;
+            self.vram_first_write = false;
+        } else {
+            // Second write - write both bytes
+            self.vram.write16(address, (self.vram_latch as u16) << 8 | value as u16);
+            self.vram_first_write = true;
+            
+            // Auto-increment based on VMAIN setting
+            if (self.registers.vmain & 0x80) != 0 {
+                self.auto_increment_vram();
+            }
         }
+        
+        trace!("VRAM write high: ${:04X} = ${:02X}", address, value);
     }
 
     fn auto_increment_vram(&mut self) {
@@ -290,7 +385,7 @@ impl Ppu {
     }
 
     fn write_cgram(&mut self, value: u8) {
-        // TODO: Implement CGRAM writes
+        self.cgram.write(self.registers.cgadd, value);
         trace!("CGRAM write: ${:02X} = ${:02X}", self.registers.cgadd, value);
         
         // Auto-increment CGRAM address
@@ -299,7 +394,7 @@ impl Ppu {
 
     fn write_oam(&mut self, value: u8) {
         let address = self.registers.get_oam_address();
-        // TODO: Actually write to OAM
+        self.oam.write(address, value);
         trace!("OAM write: ${:04X} = ${:02X}", address, value);
         
         // Auto-increment OAM address

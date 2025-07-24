@@ -7,8 +7,6 @@ use crate::cpu::execute::execute_instruction;
 pub struct Cpu {
     pub registers: CpuRegisters,
     pub cycles: u64,
-    pub halt: bool,
-    pub waiting_for_interrupt: bool,
 }
 
 impl Cpu {
@@ -16,8 +14,6 @@ impl Cpu {
         Self {
             registers: CpuRegisters::new(),
             cycles: 0,
-            halt: false,
-            waiting_for_interrupt: false,
         }
     }
 
@@ -33,8 +29,8 @@ impl Cpu {
         self.registers.emulation_mode = true; // Start in emulation mode
         
         self.cycles = 0;
-        self.halt = false;
-        self.waiting_for_interrupt = false;
+        self.registers.halt = false;
+        self.registers.waiting_for_interrupt = false;
         
         log::info!("CPU Reset - PC: ${:04X}, S: ${:04X}", reset_vector, self.registers.s);
         
@@ -42,7 +38,7 @@ impl Cpu {
     }
 
     pub fn step(&mut self, bus: &mut Bus) -> Result<u32> {
-        if self.halt || self.waiting_for_interrupt {
+        if self.registers.halt || self.registers.waiting_for_interrupt {
             // CPU is halted, just consume 1 cycle
             self.cycles += 1;
             return Ok(1);
@@ -68,8 +64,8 @@ impl Cpu {
     }
 
     pub fn trigger_nmi(&mut self, bus: &mut Bus) -> Result<()> {
-        if self.waiting_for_interrupt {
-            self.waiting_for_interrupt = false;
+        if self.registers.waiting_for_interrupt {
+            self.registers.waiting_for_interrupt = false;
         }
         
         // Push PC (24-bit in native mode, 16-bit in emulation mode)
@@ -106,8 +102,8 @@ impl Cpu {
             return Ok(());
         }
         
-        if self.waiting_for_interrupt {
-            self.waiting_for_interrupt = false;
+        if self.registers.waiting_for_interrupt {
+            self.registers.waiting_for_interrupt = false;
         }
         
         // Push PC (24-bit in native mode, 16-bit in emulation mode)
