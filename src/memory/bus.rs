@@ -168,62 +168,21 @@ impl Bus {
     }
 
     fn read_ppu_register(&self, addr: u16) -> u8 {
-        match addr {
-            0x2134..=0x2136 => {
-                // Multiplication result registers
-                self.ppu_regs[(addr - 0x2100) as usize]
-            }
-            0x2137 => {
-                // Software latch for H/V counters
-                self.ppu_regs[(addr - 0x2100) as usize]
-            }
-            0x2138 => {
-                // OAM data read
-                // TODO: Implement proper OAM reading
-                self.ppu_regs[(addr - 0x2100) as usize]
-            }
-            0x2139..=0x213A => {
-                // VRAM data read
-                // TODO: Implement proper VRAM reading
-                self.ppu_regs[(addr - 0x2100) as usize]
-            }
-            0x213B => {
-                // CGRAM data read
-                // TODO: Implement proper CGRAM reading
-                self.ppu_regs[(addr - 0x2100) as usize]
-            }
-            0x213C..=0x213F => {
-                // Horizontal/Vertical counter reads
-                self.ppu_regs[(addr - 0x2100) as usize]
-            }
-            _ => {
-                // Most PPU registers are write-only
-                0
-            }
+        // PPU register reads are handled by the PPU itself
+        // For now, return the cached value
+        if addr >= 0x2100 && addr <= 0x213F {
+            self.ppu_regs[(addr - 0x2100) as usize]
+        } else {
+            0
         }
     }
 
     fn write_ppu_register(&mut self, addr: u16, value: u8) {
-        match addr {
-            0x2118..=0x2119 => {
-                // VRAM data write
-                // TODO: Implement proper VRAM writing
-                self.ppu_regs[(addr - 0x2100) as usize] = value;
-            }
-            0x2122 => {
-                // CGRAM data write
-                // TODO: Implement proper CGRAM writing
-                self.ppu_regs[(addr - 0x2100) as usize] = value;
-            }
-            0x2104 => {
-                // OAM data write
-                // TODO: Implement proper OAM writing
-                self.ppu_regs[(addr - 0x2100) as usize] = value;
-            }
-            _ => {
-                self.ppu_regs[(addr - 0x2100) as usize] = value;
-            }
+        // Cache the value for direct access
+        if addr >= 0x2100 && addr <= 0x213F {
+            self.ppu_regs[(addr - 0x2100) as usize] = value;
         }
+        // Actual PPU register writes are handled by the PPU itself
     }
 
     // Direct memory access methods for PPU

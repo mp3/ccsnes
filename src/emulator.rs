@@ -65,6 +65,16 @@ impl Emulator {
             return Ok(());
         }
 
+        // Handle PPU register reads/writes through the bus
+        // This is a temporary solution until we implement proper memory-mapped I/O
+        for addr in 0x2100..=0x213F {
+            if self.bus.ppu_register(addr) != 0 {
+                let value = self.bus.ppu_register(addr);
+                self.ppu.write_register(addr, value);
+                self.bus.set_ppu_register(addr, 0); // Clear after handling
+            }
+        }
+
         let cpu_cycles = self.cpu.step(&mut self.bus)?;
         
         for _ in 0..cpu_cycles * 4 {
