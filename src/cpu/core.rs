@@ -1,37 +1,148 @@
 use crate::memory::Bus;
 use crate::Result;
+use crate::cpu::registers::CpuRegisters;
+use crate::cpu::instructions::decode_opcode;
+use crate::cpu::execute::execute_instruction;
 
 pub struct Cpu {
-    // TODO: Implement 65C816 CPU
-    cycles: u64,
+    pub registers: CpuRegisters,
+    pub cycles: u64,
+    pub halt: bool,
+    pub waiting_for_interrupt: bool,
 }
 
 impl Cpu {
     pub fn new() -> Self {
         Self {
+            registers: CpuRegisters::new(),
             cycles: 0,
+            halt: false,
+            waiting_for_interrupt: false,
         }
     }
 
-    pub fn reset(&mut self, _bus: &mut Bus) -> Result<()> {
+    pub fn reset(&mut self, bus: &mut Bus) -> Result<()> {
+        // Read reset vector from $FFFC-$FFFD
+        let reset_vector = bus.read16(0xFFFC);
+        
+        // Initialize registers
+        self.registers = CpuRegisters::new();
+        self.registers.pc = reset_vector as u32;
+        self.registers.s = 0x01FF;  // Stack pointer
+        self.registers.p = 0x34;    // IRQ disabled, 8-bit mode
+        self.registers.emulation_mode = true; // Start in emulation mode
+        
         self.cycles = 0;
+        self.halt = false;
+        self.waiting_for_interrupt = false;
+        
+        log::info!("CPU Reset - PC: ${:04X}, S: ${:04X}", reset_vector, self.registers.s);
+        
         Ok(())
     }
 
-    pub fn step(&mut self, _bus: &mut Bus) -> Result<u32> {
-        // TODO: Implement CPU instruction execution
-        // For now, just return 1 cycle
-        self.cycles += 1;
-        Ok(1)
+    pub fn step(&mut self, bus: &mut Bus) -> Result<u32> {
+        if self.halt || self.waiting_for_interrupt {
+            // CPU is halted, just consume 1 cycle
+            self.cycles += 1;
+            return Ok(1);
+        }
+        
+        // Fetch opcode
+        let opcode = bus.read8(self.registers.pc);
+        self.registers.increment_pc(1);
+        
+        // Decode instruction
+        if let Some(info) = decode_opcode(opcode) {
+            // Execute instruction
+            let cycles = execute_instruction(&mut self.registers, bus, &info)?;
+            self.cycles += cycles as u64;
+            
+            Ok(cycles)
+        } else {
+            // Unknown opcode - treat as NOP
+            log::warn!("Unknown opcode ${:02X} at PC ${:06X}", opcode, self.registers.pc - 1);
+            self.cycles += 2;
+            Ok(2)
+        }
     }
 
-    pub fn trigger_nmi(&mut self, _bus: &mut Bus) -> Result<()> {
-        // TODO: Implement NMI handling
+    pub fn trigger_nmi(&mut self, bus: &mut Bus) -> Result<()> {
+        if self.waiting_for_interrupt {
+            self.waiting_for_interrupt = false;
+        }
+        
+        // Push PC (24-bit in native mode, 16-bit in emulation mode)
+        if !self.registers.emulation_mode {
+            // Native mode: push 24-bit PC
+            self.registers.push_8(bus, self.registers.get_pc_bank());
+        }
+        self.registers.push_16(bus, self.registers.get_pc_offset());
+        
+        // Push processor status
+        self.registers.push_8(bus, self.registers.p);
+        
+        // Set interrupt disable flag
+        self.registers.set_irq_disable(true);
+        
+        // Jump to NMI vector
+        let nmi_vector = if self.registers.emulation_mode {
+            bus.read16(0xFFFA) // Emulation mode NMI vector
+        } else {
+            bus.read16(0xFFEA) // Native mode NMI vector
+        };
+        
+        self.registers.pc = nmi_vector as u32;
+        
+        // NMI takes 7-8 cycles
+        self.cycles += 8;
+        
         Ok(())
     }
 
-    pub fn trigger_irq(&mut self, _bus: &mut Bus) -> Result<()> {
-        // TODO: Implement IRQ handling
+    pub fn trigger_irq(&mut self, bus: &mut Bus) -> Result<()> {
+        // IRQ is ignored if interrupt disable flag is set
+        if self.registers.irq_disable() {
+            return Ok(());
+        }
+        
+        if self.waiting_for_interrupt {
+            self.waiting_for_interrupt = false;
+        }
+        
+        // Push PC (24-bit in native mode, 16-bit in emulation mode)
+        if !self.registers.emulation_mode {
+            // Native mode: push 24-bit PC
+            self.registers.push_8(bus, self.registers.get_pc_bank());
+        }
+        self.registers.push_16(bus, self.registers.get_pc_offset());
+        
+        // Push processor status
+        self.registers.push_8(bus, self.registers.p);
+        
+        // Set interrupt disable flag
+        self.registers.set_irq_disable(true);
+        
+        // Jump to IRQ vector
+        let irq_vector = if self.registers.emulation_mode {
+            bus.read16(0xFFFE) // Emulation mode IRQ vector
+        } else {
+            bus.read16(0xFFEE) // Native mode IRQ vector
+        };
+        
+        self.registers.pc = irq_vector as u32;
+        
+        // IRQ takes 7-8 cycles
+        self.cycles += 8;
+        
         Ok(())
+    }
+    
+    pub fn get_registers(&self) -> &CpuRegisters {
+        &self.registers
+    }
+    
+    pub fn get_cycles(&self) -> u64 {
+        self.cycles
     }
 }
