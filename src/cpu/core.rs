@@ -138,6 +138,10 @@ impl Cpu {
         &self.registers
     }
     
+    pub fn get_registers_mut(&mut self) -> &mut CpuRegisters {
+        &mut self.registers
+    }
+    
     pub fn get_cycles(&self) -> u64 {
         self.cycles
     }

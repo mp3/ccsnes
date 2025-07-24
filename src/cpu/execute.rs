@@ -778,8 +778,7 @@ pub fn execute_instruction(
         // Status Register Instructions
         Instruction::REP => {
             // Reset Processor Status Bits
-            let mask = bus.read8(cpu.pc);
-            cpu.increment_pc(1);
+            let mask = addressing_result.value as u8;
             cpu.p &= !mask;
             
             // In emulation mode, M and X flags are always set
@@ -791,8 +790,7 @@ pub fn execute_instruction(
         
         Instruction::SEP => {
             // Set Processor Status Bits
-            let mask = bus.read8(cpu.pc);
-            cpu.increment_pc(1);
+            let mask = addressing_result.value as u8;
             cpu.p |= mask;
         }
         

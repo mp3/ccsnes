@@ -81,7 +81,19 @@ impl Bus {
                     0x4300..=0x437F => self.dma_regs[(addr - 0x4300) as usize],
                     
                     // ROM area ($8000-$FFFF in banks $00-$3F, $0000-$FFFF in banks $80-$BF)
-                    _ => self.read_cartridge(address),
+                    _ => {
+                        if self.cartridge.is_none() && addr >= 0x8000 {
+                            // For testing: read from upper WRAM when no cartridge loaded
+                            let test_addr = (addr - 0x8000) as usize;
+                            if test_addr < self.wram.len() - 0x8000 {
+                                self.wram[0x8000 + test_addr]
+                            } else {
+                                0
+                            }
+                        } else {
+                            self.read_cartridge(address)
+                        }
+                    }
                 }
             }
             
@@ -131,8 +143,16 @@ impl Bus {
                     // DMA registers ($4300-$437F)
                     0x4300..=0x437F => self.dma_regs[(addr - 0x4300) as usize] = value,
                     
-                    // ROM area - read only
-                    _ => {}
+                    // ROM area - normally read only, but allow writes for testing when no cartridge loaded
+                    _ => {
+                        if self.cartridge.is_none() && addr >= 0x8000 {
+                            // For testing: store ROM area writes in upper WRAM
+                            let test_addr = (addr - 0x8000) as usize;
+                            if test_addr < self.wram.len() - 0x8000 {
+                                self.wram[0x8000 + test_addr] = value;
+                            }
+                        }
+                    }
                 }
             }
             
