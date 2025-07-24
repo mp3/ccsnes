@@ -48,9 +48,11 @@ impl Emulator {
         info!("ROM loaded: {}", cartridge.header.title);
         info!("Mapper type: {:?}", cartridge.header.mapper_type);
         
-        self.bus.install_cartridge(&cartridge);
-        self.bus.connect_input(&mut self.input);
         self.cartridge = Some(cartridge);
+        if let Some(ref mut cartridge) = self.cartridge {
+            self.bus.install_cartridge(cartridge);
+        }
+        self.bus.connect_input(&mut self.input);
         
         self.reset()?;
         Ok(())

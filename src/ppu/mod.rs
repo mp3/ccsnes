@@ -4,5 +4,6 @@ pub mod renderer;
 pub mod backgrounds;
 pub mod sprites;
 pub mod memory;
+pub mod scrolling;
 
 pub use core::Ppu;

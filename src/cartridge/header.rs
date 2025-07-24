@@ -56,6 +56,7 @@ impl CartridgeHeader {
     pub fn parse(rom_data: &[u8]) -> Result<Self> {
         // Try to detect header location (LoROM vs HiROM)
         let header_offset = Self::detect_header_offset(rom_data)?;
+        log::debug!("Detected header offset: 0x{:X}", header_offset);
         
         if rom_data.len() < header_offset + 0x30 {
             return Err(anyhow!("ROM too small to contain valid header"));
@@ -125,20 +126,30 @@ impl CartridgeHeader {
         let has_copier_header = (rom_data.len() % 1024) == 512;
         let base_offset = if has_copier_header { 512 } else { 0 };
 
-        // Try LoROM header location first ($7FC0)
+        // Try both LoROM and HiROM locations and pick the best one
         let lorom_offset = base_offset + 0x7FC0;
-        if rom_data.len() > lorom_offset + 0x30 {
-            if Self::is_valid_header(&rom_data[lorom_offset..lorom_offset + 0x30]) {
+        let hirom_offset = base_offset + 0xFFC0;
+        
+        let lorom_valid = rom_data.len() > lorom_offset + 0x30 && 
+                          Self::is_valid_header(&rom_data[lorom_offset..lorom_offset + 0x30]);
+        let hirom_valid = rom_data.len() > hirom_offset + 0x30 && 
+                          Self::is_valid_header(&rom_data[hirom_offset..hirom_offset + 0x30]);
+        
+        // If both are valid, check the mapper byte to decide
+        if lorom_valid && hirom_valid {
+            let lorom_mapper = rom_data[lorom_offset + 0x15];
+            let hirom_mapper = rom_data[hirom_offset + 0x15];
+            
+            // Prefer HiROM if its mapper byte indicates HiROM
+            if (hirom_mapper & 0x01) == 0x01 || hirom_mapper == 0x21 || hirom_mapper == 0x31 {
+                return Ok(hirom_offset);
+            } else {
                 return Ok(lorom_offset);
             }
-        }
-
-        // Try HiROM header location ($FFC0)
-        let hirom_offset = base_offset + 0xFFC0;
-        if rom_data.len() > hirom_offset + 0x30 {
-            if Self::is_valid_header(&rom_data[hirom_offset..hirom_offset + 0x30]) {
-                return Ok(hirom_offset);
-            }
+        } else if hirom_valid {
+            return Ok(hirom_offset);
+        } else if lorom_valid {
+            return Ok(lorom_offset);
         }
 
         // Try ExLoROM header location ($40FFB0)

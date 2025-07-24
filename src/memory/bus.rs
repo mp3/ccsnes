@@ -12,7 +12,7 @@ pub struct Bus {
     oam: Vec<u8>,        // PPU Object Attribute Memory
     cgram: Vec<u8>,      // PPU Color Generator RAM
     
-    cartridge: Option<*const Cartridge>,
+    cartridge: Option<*mut Cartridge>,
     
     // PPU registers ($2100-$213F)
     ppu_regs: [u8; 0x40],
@@ -46,8 +46,8 @@ impl Bus {
         }
     }
 
-    pub fn install_cartridge(&mut self, cartridge: &Cartridge) {
-        self.cartridge = Some(cartridge as *const Cartridge);
+    pub fn install_cartridge(&mut self, cartridge: &mut Cartridge) {
+        self.cartridge = Some(cartridge as *mut Cartridge);
     }
     
     pub fn connect_input(&mut self, input: &mut Input) {
@@ -97,7 +97,7 @@ impl Bus {
                 }
             }
             
-            // Banks $40-$7D: Upper ROM area
+            // Banks $40-$7D: Upper ROM area (but $70-$7D might be SRAM)
             0x40..=0x7D => self.read_cartridge(address),
             
             // Banks $7E-$7F: Work RAM
@@ -151,8 +151,18 @@ impl Bus {
                             if test_addr < self.wram.len() - 0x8000 {
                                 self.wram[0x8000 + test_addr] = value;
                             }
+                        } else if self.cartridge.is_some() {
+                            // Pass writes to cartridge (for SRAM)
+                            self.write_cartridge(address, value);
                         }
                     }
+                }
+            }
+            
+            // Banks $40-$7D: Check for SRAM writes
+            0x40..=0x7D => {
+                if self.cartridge.is_some() {
+                    self.write_cartridge(address, value);
                 }
             }
             
@@ -164,8 +174,12 @@ impl Bus {
                 }
             }
             
-            // Other banks - mostly ROM, read only
-            _ => {}
+            // Other banks - mostly ROM, but might have SRAM
+            _ => {
+                if self.cartridge.is_some() {
+                    self.write_cartridge(address, value);
+                }
+            }
         }
     }
 
@@ -193,6 +207,15 @@ impl Bus {
             }
         } else {
             0
+        }
+    }
+    
+    fn write_cartridge(&mut self, address: u32, value: u8) {
+        if let Some(cartridge_ptr) = self.cartridge {
+            unsafe {
+                let cartridge = &mut *(cartridge_ptr as *mut Cartridge);
+                cartridge.write(address, value);
+            }
         }
     }
 

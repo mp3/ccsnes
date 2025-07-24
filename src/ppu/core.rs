@@ -4,6 +4,7 @@ use crate::ppu::renderer::Renderer;
 use crate::ppu::memory::{Vram, Cgram, Oam};
 use crate::ppu::backgrounds::BackgroundRenderer;
 use crate::ppu::sprites::SpriteRenderer;
+use crate::ppu::scrolling::ScrollingEngine;
 use log::trace;
 
 const SCREEN_WIDTH: usize = 256;
@@ -21,6 +22,7 @@ pub struct Ppu {
     _renderer: Renderer,
     bg_renderer: BackgroundRenderer,
     sprite_renderer: SpriteRenderer,
+    scrolling: ScrollingEngine,
     
     // Memory
     vram: Vram,
@@ -60,6 +62,7 @@ impl Ppu {
             _renderer: Renderer::new(),
             bg_renderer: BackgroundRenderer::new(),
             sprite_renderer: SpriteRenderer::new(),
+            scrolling: ScrollingEngine::new(),
             vram: Vram::new(),
             cgram: Cgram::new(),
             oam: Oam::new(),
@@ -328,6 +331,9 @@ impl Ppu {
 
     pub fn write_register(&mut self, address: u16, value: u8) {
         self.registers.write(address, value);
+        
+        // Forward to scrolling engine for scroll/window registers
+        self.scrolling.write_register(address, value);
         
         // Handle VRAM writes
         match address {
