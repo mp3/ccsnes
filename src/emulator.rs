@@ -1,0 +1,129 @@
+use crate::apu::Apu;
+use crate::cartridge::Cartridge;
+use crate::cpu::Cpu;
+use crate::input::Input;
+use crate::memory::Bus;
+use crate::ppu::Ppu;
+use crate::Result;
+use log::{debug, info};
+
+pub struct Emulator {
+    pub cpu: Cpu,
+    pub ppu: Ppu,
+    pub apu: Apu,
+    pub bus: Bus,
+    pub input: Input,
+    pub cartridge: Option<Cartridge>,
+    pub cycles: u64,
+    pub running: bool,
+}
+
+impl Emulator {
+    pub fn new() -> Result<Self> {
+        info!("Initializing SNES emulator");
+        
+        Ok(Self {
+            cpu: Cpu::new(),
+            ppu: Ppu::new(),
+            apu: Apu::new(),
+            bus: Bus::new(),
+            input: Input::new(),
+            cartridge: None,
+            cycles: 0,
+            running: false,
+        })
+    }
+
+    pub fn load_rom(&mut self, rom_data: &[u8]) -> Result<()> {
+        info!("Loading ROM ({} bytes)", rom_data.len());
+        
+        let cartridge = Cartridge::load(rom_data)?;
+        info!("ROM loaded: {}", cartridge.header.title);
+        info!("Mapper type: {:?}", cartridge.header.mapper_type);
+        
+        self.bus.install_cartridge(&cartridge);
+        self.cartridge = Some(cartridge);
+        
+        self.reset()?;
+        Ok(())
+    }
+
+    pub fn reset(&mut self) -> Result<()> {
+        debug!("Resetting emulator");
+        
+        self.cpu.reset(&mut self.bus)?;
+        self.ppu.reset();
+        self.apu.reset();
+        self.cycles = 0;
+        self.running = true;
+        
+        Ok(())
+    }
+
+    pub fn step(&mut self) -> Result<()> {
+        if !self.running {
+            return Ok(());
+        }
+
+        let cpu_cycles = self.cpu.step(&mut self.bus)?;
+        
+        for _ in 0..cpu_cycles * 4 {
+            self.ppu.step(&mut self.bus);
+        }
+        
+        for _ in 0..cpu_cycles {
+            self.apu.step();
+        }
+        
+        self.cycles += cpu_cycles as u64;
+        
+        if self.ppu.nmi_pending() {
+            self.cpu.trigger_nmi(&mut self.bus)?;
+        }
+        
+        if self.ppu.irq_pending() {
+            self.cpu.trigger_irq(&mut self.bus)?;
+        }
+        
+        Ok(())
+    }
+
+    pub fn step_frame(&mut self) -> Result<()> {
+        if !self.running {
+            return Ok(());
+        }
+
+        let start_cycles = self.cycles;
+        const CYCLES_PER_FRAME: u64 = 357366; // NTSC: ~21.477MHz / 60fps
+        
+        while self.cycles - start_cycles < CYCLES_PER_FRAME {
+            self.step()?;
+        }
+        
+        Ok(())
+    }
+
+    pub fn set_controller_input(&mut self, player: u8, buttons: u16) {
+        self.input.set_controller_state(player, buttons);
+    }
+
+    pub fn get_video_buffer(&self) -> &[u8] {
+        self.ppu.get_frame_buffer()
+    }
+
+    pub fn get_audio_samples(&mut self) -> Vec<f32> {
+        self.apu.get_audio_samples()
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.running
+    }
+
+    pub fn pause(&mut self) {
+        self.running = false;
+    }
+
+    pub fn resume(&mut self) {
+        self.running = true;
+    }
+}

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCSNES - Super Nintendo Emulator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 CCSNES</h1>
+            <p>Super Nintendo Entertainment System Emulator</p>
+        </header>
+
+        <main>
+            <div class="emulator-section">
+                <div class="screen-container">
+                    <canvas id="screen" width="256" height="224"></canvas>
+                </div>
+                
+                <div class="controls">
+                    <div class="file-controls">
+                        <input type="file" id="rom-input" accept=".smc,.sfc,.fig" style="display: none;">
+                        <button id="load-rom-btn">Load ROM</button>
+                        <span id="rom-status">No ROM loaded</span>
+                    </div>
+                    
+                    <div class="emulator-controls">
+                        <button id="play-pause-btn" disabled>Play</button>
+                        <button id="reset-btn" disabled>Reset</button>
+                        <button id="fullscreen-btn">Fullscreen</button>
+                    </div>
+                    
+                    <div class="audio-controls">
+                        <label for="volume-slider">Volume:</label>
+                        <input type="range" id="volume-slider" min="0" max="100" value="50">
+                        <span id="volume-display">50%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <div class="input-help">
+                    <h3>Controls</h3>
+                    <div class="control-mapping">
+                        <div class="control-group">
+                            <h4>D-Pad</h4>
+                            <p>Arrow Keys</p>
+                        </div>
+                        <div class="control-group">
+                            <h4>Buttons</h4>
+                            <p>A: Z/J | B: X/K</p>
+                            <p>X: A/U | Y: S/I</p>
+                        </div>
+                        <div class="control-group">
+                            <h4>Shoulders</h4>
+                            <p>L: Q/O | R: W/P</p>
+                        </div>
+                        <div class="control-group">
+                            <h4>System</h4>
+                            <p>Start: Enter | Select: Space</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="rom-info" id="rom-info" style="display: none;">
+                    <h3>ROM Information</h3>
+                    <div id="rom-details"></div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Built with Rust 🦀 and WebAssembly</p>
+            <p><a href="https://github.com/yourusername/ccsnes" target="_blank">Source Code</a></p>
+        </footer>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
