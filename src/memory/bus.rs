@@ -1,5 +1,6 @@
 use crate::cartridge::Cartridge;
 use crate::input::Input;
+use crate::apu::Apu;
 
 const WRAM_SIZE: usize = 0x20000; // 128KB Work RAM
 const VRAM_SIZE: usize = 0x10000; // 64KB Video RAM
@@ -28,6 +29,9 @@ pub struct Bus {
     
     // Input system pointer
     input: Option<*mut Input>,
+    
+    // APU pointer
+    apu: Option<*mut Apu>,
 }
 
 impl Bus {
@@ -43,6 +47,7 @@ impl Bus {
             controller_regs: [0; 0x20],
             dma_regs: [0; 0x80],
             input: None,
+            apu: None,
         }
     }
 
@@ -52,6 +57,10 @@ impl Bus {
     
     pub fn connect_input(&mut self, input: &mut Input) {
         self.input = Some(input as *mut Input);
+    }
+    
+    pub fn connect_apu(&mut self, apu: &mut Apu) {
+        self.apu = Some(apu as *mut Apu);
     }
 
     pub fn read8(&self, address: u32) -> u8 {
@@ -69,7 +78,21 @@ impl Bus {
                     0x2100..=0x213F => self.read_ppu_register(addr as u16),
                     
                     // APU registers ($2140-$217F)
-                    0x2140..=0x217F => self.apu_regs[(addr - 0x2140) as usize],
+                    0x2140..=0x217F => {
+                        if let Some(apu_ptr) = self.apu {
+                            let apu = unsafe { &*apu_ptr };
+                            // Read from APU ports 0-3
+                            match addr {
+                                0x2140 => apu.read_port(0),
+                                0x2141 => apu.read_port(1),
+                                0x2142 => apu.read_port(2),
+                                0x2143 => apu.read_port(3),
+                                _ => 0,
+                            }
+                        } else {
+                            self.apu_regs[(addr - 0x2140) as usize]
+                        }
+                    }
                     
                     // Controller registers ($4016-$4017)
                     0x4016..=0x4017 => self.read_controller(addr as u16),
@@ -132,7 +155,21 @@ impl Bus {
                     0x2100..=0x213F => self.write_ppu_register(addr as u16, value),
                     
                     // APU registers ($2140-$217F)
-                    0x2140..=0x217F => self.apu_regs[(addr - 0x2140) as usize] = value,
+                    0x2140..=0x217F => {
+                        if let Some(apu_ptr) = self.apu {
+                            let apu = unsafe { &mut *apu_ptr };
+                            // Write to APU ports 0-3
+                            match addr {
+                                0x2140 => apu.write_port(0, value),
+                                0x2141 => apu.write_port(1, value),
+                                0x2142 => apu.write_port(2, value),
+                                0x2143 => apu.write_port(3, value),
+                                _ => {}
+                            }
+                        } else {
+                            self.apu_regs[(addr - 0x2140) as usize] = value;
+                        }
+                    }
                     
                     // Controller registers ($4016-$4017)
                     0x4016..=0x4017 => self.write_controller(addr as u16, value),

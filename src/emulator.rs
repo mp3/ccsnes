@@ -53,6 +53,7 @@ impl Emulator {
             self.bus.install_cartridge(cartridge);
         }
         self.bus.connect_input(&mut self.input);
+        self.bus.connect_apu(&mut self.apu);
         
         self.reset()?;
         Ok(())
