@@ -30,4 +30,9 @@ impl Input {
             _ => 0,
         }
     }
+    
+    pub fn strobe_controllers(&mut self, value: bool) {
+        self.controller1.strobe(value);
+        self.controller2.strobe(value);
+    }
 }

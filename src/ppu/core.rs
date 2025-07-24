@@ -3,6 +3,7 @@ use crate::ppu::registers::PpuRegisters;
 use crate::ppu::renderer::Renderer;
 use crate::ppu::memory::{Vram, Cgram, Oam};
 use crate::ppu::backgrounds::BackgroundRenderer;
+use crate::ppu::sprites::SpriteRenderer;
 use log::trace;
 
 const SCREEN_WIDTH: usize = 256;
@@ -19,6 +20,7 @@ pub struct Ppu {
     pub registers: PpuRegisters,
     _renderer: Renderer,
     bg_renderer: BackgroundRenderer,
+    sprite_renderer: SpriteRenderer,
     
     // Memory
     vram: Vram,
@@ -46,6 +48,9 @@ pub struct Ppu {
     // VRAM write buffer (for 16-bit writes)
     vram_latch: u8,
     vram_first_write: bool,
+    
+    // Temporary scanline buffer for compositing
+    scanline_buffer: Vec<u8>,
 }
 
 impl Ppu {
@@ -54,6 +59,7 @@ impl Ppu {
             registers: PpuRegisters::new(),
             _renderer: Renderer::new(),
             bg_renderer: BackgroundRenderer::new(),
+            sprite_renderer: SpriteRenderer::new(),
             vram: Vram::new(),
             cgram: Cgram::new(),
             oam: Oam::new(),
@@ -69,6 +75,7 @@ impl Ppu {
             latch_v: false,
             vram_latch: 0,
             vram_first_write: true,
+            scanline_buffer: vec![0; 256 * 4],
         }
     }
 
@@ -145,7 +152,7 @@ impl Ppu {
             return;
         }
         
-        // Render backgrounds using the background renderer
+        // Render backgrounds
         let bg_buffer = self.bg_renderer.render_scanline(
             &self.vram,
             &self.cgram,
@@ -153,24 +160,39 @@ impl Ppu {
             self.scanline,
         );
         
-        // Copy background buffer to frame buffer
+        // Copy background to scanline buffer
+        self.scanline_buffer.copy_from_slice(bg_buffer);
+        
+        // Render sprites on top
+        let main_screen = self.registers.get_main_screen_layers();
+        if (main_screen & 0x10) != 0 { // Check if sprites are enabled on main screen
+            self.sprite_renderer.render_scanline(
+                &self.vram,
+                &self.cgram,
+                &self.oam,
+                &self.registers,
+                self.scanline,
+                &mut self.scanline_buffer,
+            );
+        }
+        
+        // Copy final scanline to frame buffer with brightness adjustment
         let frame_offset = y * SCREEN_WIDTH * 4;
+        let brightness = self.registers.get_brightness();
+        let factor = brightness as f32 / 15.0;
+        
         for x in 0..SCREEN_WIDTH {
             let src_offset = x * 4;
             let dst_offset = frame_offset + src_offset;
             
-            // Apply brightness
-            let brightness = self.registers.get_brightness();
-            let factor = brightness as f32 / 15.0;
-            
-            self.frame_buffer[dst_offset] = (bg_buffer[src_offset] as f32 * factor) as u8;
-            self.frame_buffer[dst_offset + 1] = (bg_buffer[src_offset + 1] as f32 * factor) as u8;
-            self.frame_buffer[dst_offset + 2] = (bg_buffer[src_offset + 2] as f32 * factor) as u8;
-            self.frame_buffer[dst_offset + 3] = bg_buffer[src_offset + 3];
+            self.frame_buffer[dst_offset] = (self.scanline_buffer[src_offset] as f32 * factor) as u8;
+            self.frame_buffer[dst_offset + 1] = (self.scanline_buffer[src_offset + 1] as f32 * factor) as u8;
+            self.frame_buffer[dst_offset + 2] = (self.scanline_buffer[src_offset + 2] as f32 * factor) as u8;
+            self.frame_buffer[dst_offset + 3] = self.scanline_buffer[src_offset + 3];
         }
         
-        // TODO: Implement sprite rendering
-        // TODO: Implement layer compositing with priorities
+        // TODO: Implement proper layer priority compositing
+        // TODO: Implement sub-screen and color math
     }
 
     fn enter_vblank(&mut self) {

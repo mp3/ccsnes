@@ -1,4 +1,5 @@
 use crate::cartridge::Cartridge;
+use crate::input::Input;
 
 const WRAM_SIZE: usize = 0x20000; // 128KB Work RAM
 const VRAM_SIZE: usize = 0x10000; // 64KB Video RAM
@@ -24,6 +25,9 @@ pub struct Bus {
     
     // DMA registers ($4300-$437F)
     dma_regs: [u8; 0x80],
+    
+    // Input system pointer
+    input: Option<*mut Input>,
 }
 
 impl Bus {
@@ -38,11 +42,16 @@ impl Bus {
             apu_regs: [0; 0x40],
             controller_regs: [0; 0x20],
             dma_regs: [0; 0x80],
+            input: None,
         }
     }
 
     pub fn install_cartridge(&mut self, cartridge: &Cartridge) {
         self.cartridge = Some(cartridge as *const Cartridge);
+    }
+    
+    pub fn connect_input(&mut self, input: &mut Input) {
+        self.input = Some(input as *mut Input);
     }
 
     pub fn read8(&self, address: u32) -> u8 {
@@ -63,7 +72,7 @@ impl Bus {
                     0x2140..=0x217F => self.apu_regs[(addr - 0x2140) as usize],
                     
                     // Controller registers ($4016-$4017)
-                    0x4016..=0x4017 => self.controller_regs[(addr - 0x4016) as usize],
+                    0x4016..=0x4017 => self.read_controller(addr as u16),
                     
                     // System registers ($4200-$421F)
                     0x4200..=0x421F => self.controller_regs[(addr - 0x4200 + 2) as usize],
@@ -114,7 +123,7 @@ impl Bus {
                     0x2140..=0x217F => self.apu_regs[(addr - 0x2140) as usize] = value,
                     
                     // Controller registers ($4016-$4017)
-                    0x4016..=0x4017 => self.controller_regs[(addr - 0x4016) as usize] = value,
+                    0x4016..=0x4017 => self.write_controller(addr as u16, value),
                     
                     // System registers ($4200-$421F)
                     0x4200..=0x421F => self.controller_regs[(addr - 0x4200 + 2) as usize] = value,
@@ -221,6 +230,47 @@ impl Bus {
     pub fn set_ppu_register(&mut self, addr: u16, value: u8) {
         if addr >= 0x2100 && addr <= 0x213F {
             self.ppu_regs[(addr - 0x2100) as usize] = value;
+        }
+    }
+    
+    fn read_controller(&self, addr: u16) -> u8 {
+        if let Some(input_ptr) = self.input {
+            unsafe {
+                let input = &mut *input_ptr;
+                match addr {
+                    0x4016 => {
+                        // Controller 1 data
+                        input.read_controller(0)
+                    }
+                    0x4017 => {
+                        // Controller 2 data
+                        input.read_controller(1)
+                    }
+                    _ => 0,
+                }
+            }
+        } else {
+            0
+        }
+    }
+    
+    fn write_controller(&mut self, addr: u16, value: u8) {
+        match addr {
+            0x4016 => {
+                // Controller strobe register
+                if let Some(input_ptr) = self.input {
+                    unsafe {
+                        let input = &mut *input_ptr;
+                        input.strobe_controllers((value & 0x01) != 0);
+                    }
+                }
+                self.controller_regs[0] = value;
+            }
+            0x4017 => {
+                // Controller 2 port (not used for standard controllers)
+                self.controller_regs[1] = value;
+            }
+            _ => {}
         }
     }
 }

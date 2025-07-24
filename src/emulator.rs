@@ -1,6 +1,7 @@
 use crate::apu::Apu;
 use crate::cartridge::Cartridge;
 use crate::cpu::Cpu;
+use crate::dma::DmaController;
 use crate::input::Input;
 use crate::memory::Bus;
 use crate::ppu::Ppu;
@@ -11,11 +12,15 @@ pub struct Emulator {
     pub cpu: Cpu,
     pub ppu: Ppu,
     pub apu: Apu,
+    pub dma: DmaController,
     pub bus: Bus,
     pub input: Input,
     pub cartridge: Option<Cartridge>,
     pub cycles: u64,
     pub running: bool,
+    
+    // Track HDMA initialization state
+    hdma_init_pending: bool,
 }
 
 impl Emulator {
@@ -26,11 +31,13 @@ impl Emulator {
             cpu: Cpu::new(),
             ppu: Ppu::new(),
             apu: Apu::new(),
+            dma: DmaController::new(),
             bus: Bus::new(),
             input: Input::new(),
             cartridge: None,
             cycles: 0,
             running: false,
+            hdma_init_pending: false,
         })
     }
 
@@ -42,6 +49,7 @@ impl Emulator {
         info!("Mapper type: {:?}", cartridge.header.mapper_type);
         
         self.bus.install_cartridge(&cartridge);
+        self.bus.connect_input(&mut self.input);
         self.cartridge = Some(cartridge);
         
         self.reset()?;
@@ -54,8 +62,10 @@ impl Emulator {
         self.cpu.reset(&mut self.bus)?;
         self.ppu.reset();
         self.apu.reset();
+        self.dma.reset();
         self.cycles = 0;
         self.running = true;
+        self.hdma_init_pending = false;
         
         Ok(())
     }
@@ -65,8 +75,39 @@ impl Emulator {
             return Ok(());
         }
 
+        // Handle DMA register writes
+        let dma_enable = self.bus.read8(0x420B);
+        if dma_enable != 0 {
+            // Execute DMA transfers
+            let dma_cycles = self.dma.execute_dma(&mut self.bus, &mut self.ppu);
+            self.cycles += dma_cycles as u64;
+            
+            // Clear DMA enable register
+            self.bus.write8(0x420B, 0);
+            return Ok(());
+        }
+        
+        // Handle HDMA initialization at start of frame
+        if self.ppu.get_current_scanline() == 0 && !self.hdma_init_pending {
+            let hdma_enable = self.bus.read8(0x420C);
+            if hdma_enable != 0 {
+                self.dma.init_hdma(&mut self.bus);
+                self.hdma_init_pending = true;
+            }
+        }
+        
+        // Reset HDMA init flag when we're past scanline 0
+        if self.ppu.get_current_scanline() > 0 {
+            self.hdma_init_pending = false;
+        }
+
+        // Update DMA registers from bus
+        for addr in 0x4300..=0x437F {
+            let value = self.bus.read8(addr);
+            self.dma.write_register(addr as u16, value);
+        }
+
         // Handle PPU register reads/writes through the bus
-        // This is a temporary solution until we implement proper memory-mapped I/O
         for addr in 0x2100..=0x213F {
             if self.bus.ppu_register(addr) != 0 {
                 let value = self.bus.ppu_register(addr);
@@ -77,8 +118,19 @@ impl Emulator {
 
         let cpu_cycles = self.cpu.step(&mut self.bus)?;
         
+        // Track current scanline for HDMA
+        let old_scanline = self.ppu.get_current_scanline();
+        
         for _ in 0..cpu_cycles * 4 {
             self.ppu.step(&mut self.bus);
+            
+            // Check if we crossed a scanline boundary
+            let new_scanline = self.ppu.get_current_scanline();
+            if new_scanline != old_scanline && new_scanline < 224 {
+                // Execute HDMA for this scanline
+                let hdma_cycles = self.dma.execute_hdma(&mut self.bus, &mut self.ppu);
+                self.cycles += hdma_cycles as u64;
+            }
         }
         
         for _ in 0..cpu_cycles {
