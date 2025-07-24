@@ -35,6 +35,10 @@ impl Vram {
         self.write(address, (value & 0xFF) as u8);
         self.write(address.wrapping_add(1), (value >> 8) as u8);
     }
+    
+    pub fn get_data(&self) -> &[u8] {
+        &self.data
+    }
 }
 
 // CGRAM - Color Generator RAM (512 bytes)
@@ -81,6 +85,10 @@ impl Cgram {
         let g = (((color & 0x03E0) >> 5) << 3) as u8;
         let b = (((color & 0x7C00) >> 10) << 3) as u8;
         (r, g, b)
+    }
+    
+    pub fn get_data(&self) -> &[u8] {
+        &self.data
     }
 }
 
@@ -205,5 +213,10 @@ impl Oam {
         
         high_byte |= high_bits << high_shift;
         self.high_table[high_index as usize] = high_byte;
+    }
+    
+    pub fn get_data(&self) -> &[u8] {
+        // Return low table for simplicity - TODO: combine both tables
+        &self.low_table
     }
 }

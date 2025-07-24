@@ -139,4 +139,14 @@ impl Cartridge {
     pub fn get_coprocessor(&self) -> crate::cartridge::header::CoprocessorType {
         self.header.coprocessor
     }
+    
+    // Save state functionality
+    pub fn get_sram(&self) -> Option<&[u8]> {
+        if self.sram.is_empty() {
+            None
+        } else {
+            Some(&self.sram)
+        }
+    }
+    
 }

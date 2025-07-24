@@ -489,4 +489,17 @@ impl Ppu {
     pub fn get_frame_count(&self) -> u64 {
         self.frame
     }
+    
+    // Simplified save state - TODO: Implement full PPU state saving
+    pub fn get_vram(&self) -> &[u8] {
+        self.vram.get_data()
+    }
+    
+    pub fn get_cgram(&self) -> &[u8] {
+        self.cgram.get_data()
+    }
+    
+    pub fn get_oam(&self) -> &[u8] {
+        self.oam.get_data()
+    }
 }

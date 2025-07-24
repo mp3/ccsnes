@@ -1,5 +1,7 @@
 // SPC700 CPU (8-bit processor for audio)
 
+use crate::savestate::Spc700State;
+
 pub struct Spc700 {
     // CPU registers
     pub(super) a: u8,      // Accumulator
@@ -253,5 +255,44 @@ impl Spc700 {
         if port < 4 {
             self.port_out[port] = value;
         }
+    }
+    
+    // Save state functionality
+    pub fn save_state(&self) -> Spc700State {
+        Spc700State {
+            a: self.a,
+            x: self.x,
+            y: self.y,
+            sp: self.sp,
+            pc: self.pc,
+            psw: self.psw,
+            ram: self.ram.clone(),
+            ipl_rom_enable: self.ipl_rom_enable,
+            port_in: self.port_in,
+            port_out: self.port_out,
+            timer_enable: self.timer_enable,
+            timer_target: self.timer_target,
+            timer_counter: self.timer_counter,
+            timer_output: self.timer_output,
+            cycles: self.cycles,
+        }
+    }
+    
+    pub fn load_state(&mut self, state: &Spc700State) {
+        self.a = state.a;
+        self.x = state.x;
+        self.y = state.y;
+        self.sp = state.sp;
+        self.pc = state.pc;
+        self.psw = state.psw;
+        self.ram = state.ram.clone();
+        self.ipl_rom_enable = state.ipl_rom_enable;
+        self.port_in = state.port_in;
+        self.port_out = state.port_out;
+        self.timer_enable = state.timer_enable;
+        self.timer_target = state.timer_target;
+        self.timer_counter = state.timer_counter;
+        self.timer_output = state.timer_output;
+        self.cycles = state.cycles;
     }
 }

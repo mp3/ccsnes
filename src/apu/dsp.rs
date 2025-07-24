@@ -1,5 +1,7 @@
 // TODO: Implement DSP (Digital Signal Processor) for audio generation
 
+use crate::savestate::{DspState, ChannelState};
+
 pub struct Dsp {
     // 8 audio channels
     channels: [AudioChannel; 8],
@@ -117,5 +119,49 @@ impl Dsp {
         } else {
             0
         }
+    }
+    
+    // Save state functionality
+    pub fn save_state(&self) -> DspState {
+        let channel_states: Vec<ChannelState> = self.channels.iter().map(|ch| {
+            ChannelState {
+                volume_left: ch.volume_left,
+                volume_right: ch.volume_right,
+                pitch: ch.pitch,
+                source_number: ch.source_number,
+                adsr: ch.adsr,
+                gain: ch.gain,
+                envelope: ch.envelope,
+            }
+        }).collect();
+        
+        DspState {
+            channels: channel_states,
+            main_volume_left: self.main_volume_left,
+            main_volume_right: self.main_volume_right,
+            echo_volume_left: self.echo_volume_left,
+            echo_volume_right: self.echo_volume_right,
+            sample_counter: self.sample_counter,
+        }
+    }
+    
+    pub fn load_state(&mut self, state: &DspState) {
+        for (i, ch_state) in state.channels.iter().enumerate() {
+            if i < 8 {
+                self.channels[i].volume_left = ch_state.volume_left;
+                self.channels[i].volume_right = ch_state.volume_right;
+                self.channels[i].pitch = ch_state.pitch;
+                self.channels[i].source_number = ch_state.source_number;
+                self.channels[i].adsr = ch_state.adsr;
+                self.channels[i].gain = ch_state.gain;
+                self.channels[i].envelope = ch_state.envelope;
+            }
+        }
+        
+        self.main_volume_left = state.main_volume_left;
+        self.main_volume_right = state.main_volume_right;
+        self.echo_volume_left = state.echo_volume_left;
+        self.echo_volume_right = state.echo_volume_right;
+        self.sample_counter = state.sample_counter;
     }
 }

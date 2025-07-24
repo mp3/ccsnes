@@ -3,6 +3,7 @@ use crate::Result;
 use crate::cpu::registers::CpuRegisters;
 use crate::cpu::instructions::decode_opcode;
 use crate::cpu::execute::execute_instruction;
+use crate::savestate::CpuState;
 
 pub struct Cpu {
     pub registers: CpuRegisters,
@@ -144,5 +145,39 @@ impl Cpu {
     
     pub fn get_cycles(&self) -> u64 {
         self.cycles
+    }
+    
+    // Save state functionality
+    pub fn save_state(&self) -> CpuState {
+        CpuState {
+            a: self.registers.a,
+            x: self.registers.x,
+            y: self.registers.y,
+            s: self.registers.s,
+            d: self.registers.d,
+            db: self.registers.db,
+            pb: self.registers.get_pc_bank(),
+            pc: self.registers.get_pc_offset(),
+            p: self.registers.p,
+            emulation_mode: self.registers.emulation_mode,
+            stopped: self.registers.halt,
+            waiting_for_interrupt: self.registers.waiting_for_interrupt,
+            nmi_pending: false, // TODO: Track NMI state
+            irq_pending: false, // TODO: Track IRQ state
+        }
+    }
+    
+    pub fn load_state(&mut self, state: &CpuState) {
+        self.registers.a = state.a;
+        self.registers.x = state.x;
+        self.registers.y = state.y;
+        self.registers.s = state.s;
+        self.registers.d = state.d;
+        self.registers.db = state.db;
+        self.registers.set_pc(state.pb, state.pc);
+        self.registers.p = state.p;
+        self.registers.emulation_mode = state.emulation_mode;
+        self.registers.halt = state.stopped;
+        self.registers.waiting_for_interrupt = state.waiting_for_interrupt;
     }
 }

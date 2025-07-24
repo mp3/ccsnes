@@ -5,6 +5,7 @@ use crate::dma::DmaController;
 use crate::input::Input;
 use crate::memory::Bus;
 use crate::ppu::Ppu;
+use crate::savestate::{SaveState, MemoryState};
 use crate::Result;
 use log::{debug, info};
 
@@ -190,5 +191,68 @@ impl Emulator {
 
     pub fn resume(&mut self) {
         self.running = true;
+    }
+    
+    // Save state functionality
+    pub fn save_state(&self) -> Result<SaveState> {
+        let mut state = SaveState::new();
+        
+        // Save CPU state
+        state.cpu = self.cpu.save_state();
+        
+        // Save PPU state (simplified for now)
+        state.ppu.current_scanline = self.ppu.get_current_scanline();
+        state.ppu.frame_count = self.ppu.get_frame_count();
+        // TODO: Save more detailed PPU state
+        
+        // Save APU state
+        state.apu = self.apu.save_state();
+        
+        // Save memory state
+        state.memory = self.bus.save_memory_state();
+        
+        // Save DMA state
+        // TODO: Implement DMA save state
+        
+        // Save emulator state
+        state.cycles = self.cycles;
+        
+        Ok(state)
+    }
+    
+    pub fn load_state(&mut self, state: &SaveState) -> Result<()> {
+        // Load CPU state
+        self.cpu.load_state(&state.cpu);
+        
+        // Load PPU state
+        // TODO: Load detailed PPU state
+        
+        // Load APU state
+        self.apu.load_state(&state.apu);
+        
+        // Load memory state
+        self.bus.load_memory_state(&state.memory)?;
+        
+        // Load DMA state
+        // TODO: Implement DMA load state
+        
+        // Load emulator state
+        self.cycles = state.cycles;
+        
+        Ok(())
+    }
+    
+    pub fn save_state_to_file(&self, path: &str) -> Result<()> {
+        let state = self.save_state()?;
+        state.save_to_file(path)?;
+        info!("Save state saved to: {}", path);
+        Ok(())
+    }
+    
+    pub fn load_state_from_file(&mut self, path: &str) -> Result<()> {
+        let state = SaveState::load_from_file(path)?;
+        self.load_state(&state)?;
+        info!("Save state loaded from: {}", path);
+        Ok(())
     }
 }

@@ -4,6 +4,7 @@ mod spc700_instructions;
 
 use self::spc700::Spc700;
 use self::dsp::Dsp;
+use crate::savestate::{ApuState, Spc700State, DspState, ChannelState};
 
 pub struct Apu {
     spc700: Spc700,
@@ -82,5 +83,20 @@ impl Apu {
     
     pub fn write_port(&mut self, port: usize, value: u8) {
         self.spc700.write_port(port, value)
+    }
+    
+    // Save state functionality
+    pub fn save_state(&self) -> ApuState {
+        ApuState {
+            spc700: self.spc700.save_state(),
+            dsp: self.dsp.save_state(),
+            audio_buffer: self.audio_buffer.clone(),
+        }
+    }
+    
+    pub fn load_state(&mut self, state: &ApuState) {
+        self.spc700.load_state(&state.spc700);
+        self.dsp.load_state(&state.dsp);
+        self.audio_buffer = state.audio_buffer.clone();
     }
 }

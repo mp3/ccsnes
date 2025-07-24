@@ -1,6 +1,8 @@
 use crate::cartridge::Cartridge;
 use crate::input::Input;
 use crate::apu::Apu;
+use crate::savestate::MemoryState;
+use crate::Result;
 
 const WRAM_SIZE: usize = 0x20000; // 128KB Work RAM
 const VRAM_SIZE: usize = 0x10000; // 64KB Video RAM
@@ -352,5 +354,35 @@ impl Bus {
             }
             _ => {}
         }
+    }
+    
+    // Save state functionality
+    pub fn save_memory_state(&self) -> MemoryState {
+        let sram = if let Some(cartridge_ptr) = self.cartridge {
+            unsafe {
+                let cartridge = &*cartridge_ptr;
+                cartridge.get_sram().map(|s| s.to_vec())
+            }
+        } else {
+            None
+        };
+        
+        MemoryState {
+            wram: self.wram.clone(),
+            sram,
+        }
+    }
+    
+    pub fn load_memory_state(&mut self, state: &MemoryState) -> Result<()> {
+        self.wram = state.wram.clone();
+        
+        if let (Some(sram_data), Some(cartridge_ptr)) = (&state.sram, self.cartridge) {
+            unsafe {
+                let cartridge = &mut *cartridge_ptr;
+                cartridge.load_sram(sram_data)?;
+            }
+        }
+        
+        Ok(())
     }
 }

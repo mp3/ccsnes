@@ -6,6 +6,7 @@ pub mod emulator;
 pub mod input;
 pub mod memory;
 pub mod ppu;
+pub mod savestate;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
