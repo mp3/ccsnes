@@ -36,6 +36,7 @@ cpal = "0.15"
 clap = { version = "4.0", features = ["derive"] }
 env_logger = "0.10"
 pollster = "0.3"
+bytemuck = { version = "1.12", features = ["derive"] }
 
 # WebAssembly専用dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
