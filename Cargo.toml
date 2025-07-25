@@ -2,10 +2,15 @@
 name = "ccsnes"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["mp3 <mp3@users.noreply.github.com>"]
 description = "Super Nintendo Entertainment System (SNES) emulator written in Rust with WebAssembly support"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/yourusername/ccsnes"
+license = "MIT"
+repository = "https://github.com/mp3/ccsnes"
+homepage = "https://github.com/mp3/ccsnes"
+documentation = "https://github.com/mp3/ccsnes/tree/main/docs"
+readme = "README.md"
+keywords = ["snes", "emulator", "super-nintendo", "wasm", "gamedev"]
+categories = ["emulators", "game-engines", "wasm"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
