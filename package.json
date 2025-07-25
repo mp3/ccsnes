@@ -1,0 +1,21 @@
+{
+  "name": "ccsnes-web",
+  "version": "0.1.0",
+  "description": "CCSNES SNES Emulator Web Interface",
+  "scripts": {
+    "build": "wasm-pack build --target web",
+    "serve": "python3 -m http.server 8000 --directory web",
+    "dev": "npm run build && npm run serve"
+  },
+  "keywords": [
+    "snes",
+    "emulator",
+    "wasm",
+    "webassembly"
+  ],
+  "author": "mp3",
+  "license": "MIT",
+  "devDependencies": {
+    "wasm-pack": "^0.12.0"
+  }
+}

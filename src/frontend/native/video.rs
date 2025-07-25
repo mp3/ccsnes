@@ -224,16 +224,22 @@ impl VideoRenderer {
         // Convert RGB565 to RGBA8888
         let mut rgba_buffer = vec![0u8; 256 * 224 * 4];
         for (i, chunk) in frame_buffer.chunks_exact(2).enumerate() {
+            if i >= 256 * 224 {
+                break;
+            }
             let pixel = u16::from_le_bytes([chunk[0], chunk[1]]);
             let r = ((pixel >> 11) & 0x1F) as u8;
             let g = ((pixel >> 5) & 0x3F) as u8;
             let b = (pixel & 0x1F) as u8;
             
             // Expand to 8-bit
-            rgba_buffer[i * 4] = (r << 3) | (r >> 2);
-            rgba_buffer[i * 4 + 1] = (g << 2) | (g >> 4);
-            rgba_buffer[i * 4 + 2] = (b << 3) | (b >> 2);
-            rgba_buffer[i * 4 + 3] = 255;
+            let idx = i * 4;
+            if idx + 3 < rgba_buffer.len() {
+                rgba_buffer[idx] = (r << 3) | (r >> 2);
+                rgba_buffer[idx + 1] = (g << 2) | (g >> 4);
+                rgba_buffer[idx + 2] = (b << 3) | (b >> 2);
+                rgba_buffer[idx + 3] = 255;
+            }
         }
         
         // Update texture
