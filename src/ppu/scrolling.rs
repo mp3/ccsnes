@@ -1,4 +1,3 @@
-use super::registers::PpuRegisters;
 
 /// Handles PPU scrolling and window functionality
 pub struct ScrollingEngine {

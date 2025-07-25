@@ -6,7 +6,7 @@ use crate::cpu::instructions::InstructionInfo;
 
 const DEFAULT_TRACE_SIZE: usize = 10000;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Tracer {
     // Circular buffer of trace entries
     entries: VecDeque<TraceEntry>,
@@ -126,9 +126,18 @@ impl Tracer {
             return;
         }
         
+        // Format entry before mutable borrow
+        let formatted = if self.file_writer.is_some() {
+            Some(self.format_entry(&entry))
+        } else {
+            None
+        };
+        
         // Write to file if enabled
         if let Some(ref mut writer) = self.file_writer {
-            let _ = writeln!(writer, "{}", self.format_entry(&entry));
+            if let Some(formatted) = formatted {
+                let _ = writeln!(writer, "{}", formatted);
+            }
         }
         
         // Add to circular buffer

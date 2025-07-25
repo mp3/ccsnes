@@ -1,6 +1,5 @@
 use crate::memory::mappers::MapperType;
-use crate::Result;
-use anyhow::anyhow;
+use crate::{Result, EmulatorError};
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -70,7 +69,7 @@ impl CartridgeHeader {
         log::debug!("Detected header offset: 0x{:X}", header_offset);
         
         if rom_data.len() < header_offset + 0x30 {
-            return Err(anyhow!("ROM too small to contain valid header"));
+            return Err(EmulatorError::RomLoadError("ROM too small to contain valid header".to_string()));
         }
 
         // Extract header data
@@ -148,7 +147,7 @@ impl CartridgeHeader {
         
         // If both are valid, check the mapper byte to decide
         if lorom_valid && hirom_valid {
-            let lorom_mapper = rom_data[lorom_offset + 0x15];
+            let _lorom_mapper = rom_data[lorom_offset + 0x15];
             let hirom_mapper = rom_data[hirom_offset + 0x15];
             
             // Prefer HiROM if its mapper byte indicates HiROM
@@ -175,7 +174,7 @@ impl CartridgeHeader {
         if rom_data.len() > lorom_offset + 0x30 {
             Ok(lorom_offset)
         } else {
-            Err(anyhow!("Could not detect valid header location"))
+            Err(EmulatorError::RomLoadError("Could not detect valid header location".to_string()))
         }
     }
 

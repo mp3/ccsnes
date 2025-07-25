@@ -1,7 +1,6 @@
-use crate::Result;
+use crate::{Result, EmulatorError};
 use serde::{Serialize, Deserialize};
 use std::fs::File;
-use std::io;
 use flate2::write::GzEncoder;
 use flate2::read::GzDecoder;
 use flate2::Compression;
@@ -190,7 +189,7 @@ impl SaveState {
         let encoder = GzEncoder::new(file, Compression::default());
         
         bincode::serialize_into(encoder, self)
-            .map_err(|e| anyhow::anyhow!("Failed to serialize save state: {}", e))?;
+            .map_err(|e| EmulatorError::SaveStateError(format!("Failed to serialize save state: {}", e)))?;
             
         Ok(())
     }
@@ -201,14 +200,14 @@ impl SaveState {
         let decoder = GzDecoder::new(file);
         
         let state: SaveState = bincode::deserialize_from(decoder)
-            .map_err(|e| anyhow::anyhow!("Failed to deserialize save state: {}", e))?;
+            .map_err(|e| EmulatorError::SaveStateError(format!("Failed to deserialize save state: {}", e)))?;
             
         // Check version compatibility
         if state.version != SAVE_STATE_VERSION {
-            return Err(anyhow::anyhow!(
+            return Err(EmulatorError::SaveStateError(format!(
                 "Save state version mismatch: expected {}, got {}",
                 SAVE_STATE_VERSION, state.version
-            ));
+            )));
         }
         
         Ok(state)

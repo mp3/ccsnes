@@ -2,9 +2,9 @@ pub mod video;
 pub mod audio;
 
 use crate::emulator::Emulator;
-use crate::Result;
+use crate::{Result, EmulatorError};
 use winit::{
-    event::{Event, WindowEvent, DeviceEvent},
+    event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -28,7 +28,8 @@ impl NativeFrontend {
                 224 * self.scale,
             ))
             .with_resizable(false)
-            .build(&event_loop)?;
+            .build(&event_loop)
+            .map_err(|e| EmulatorError::VideoError(format!("Failed to create window: {}", e)))?;
 
         // TODO: Initialize video and audio systems
         // let mut video = video::VideoRenderer::new(&window, self.scale)?;
@@ -74,7 +75,7 @@ impl NativeFrontend {
                 
                 _ => {}
             }
-        }).map_err(|e| anyhow::anyhow!("Event loop error: {:?}", e))?;
+        }).map_err(|e| EmulatorError::VideoError(format!("Event loop error: {:?}", e)))?;
         Ok(())
     }
 }

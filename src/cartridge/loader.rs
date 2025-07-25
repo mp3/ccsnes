@@ -1,7 +1,6 @@
 use crate::cartridge::CartridgeHeader;
 use crate::memory::mappers::{create_mapper, Mapper};
-use crate::Result;
-use anyhow::anyhow;
+use crate::{Result, EmulatorError};
 use log::info;
 
 pub struct Cartridge {
@@ -24,7 +23,7 @@ impl Cartridge {
         
         // Validate ROM size
         if clean_rom_data.len() > header.rom_size * 2 {
-            return Err(anyhow!("ROM file size is larger than expected"));
+            return Err(EmulatorError::RomLoadError("ROM file size is larger than expected".to_string()));
         }
         
         // Create mapper
@@ -76,11 +75,11 @@ impl Cartridge {
 
     pub fn load_sram(&mut self, sram_data: &[u8]) -> Result<()> {
         if sram_data.len() != self.sram.len() {
-            return Err(anyhow!(
+            return Err(EmulatorError::SaveStateError(format!(
                 "SRAM data size mismatch: expected {}, got {}",
                 self.sram.len(),
                 sram_data.len()
-            ));
+            )));
         }
         
         self.sram.copy_from_slice(sram_data);

@@ -1,8 +1,7 @@
 pub mod lorom;
 pub mod hirom;
 
-use crate::Result;
-use anyhow::anyhow;
+use crate::{Result, EmulatorError};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MapperType {
@@ -51,6 +50,6 @@ pub fn create_mapper(mapper_type: MapperType, rom_size: usize, sram_size: usize)
     match mapper_type {
         MapperType::LoROM => Ok(Box::new(lorom::LoROMMapper::new(rom_size, sram_size))),
         MapperType::HiROM => Ok(Box::new(hirom::HiROMMapper::new(rom_size, sram_size))),
-        _ => Err(anyhow!("Unsupported mapper type: {:?}", mapper_type)),
+        _ => Err(EmulatorError::InvalidMapperType(format!("{:?}", mapper_type))),
     }
 }

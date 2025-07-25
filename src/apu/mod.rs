@@ -4,7 +4,7 @@ mod spc700_instructions;
 
 use self::spc700::Spc700;
 use self::dsp::Dsp;
-use crate::savestate::{ApuState, Spc700State, DspState, ChannelState};
+use crate::savestate::ApuState;
 
 pub struct Apu {
     spc700: Spc700,

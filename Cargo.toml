@@ -10,6 +10,11 @@ repository = "https://github.com/yourusername/ccsnes"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "ccsnes"
+path = "src/bin/ccsnes.rs"
+required-features = []
+
 [dependencies]
 # 共通dependencies
 byteorder = "1.5"
@@ -78,8 +83,4 @@ panic = "abort"
 [profile.release.package."*"]
 opt-level = 3
 
-[[bin]]
-name = "ccsnes"
-path = "src/main.rs"
-required-features = []
 

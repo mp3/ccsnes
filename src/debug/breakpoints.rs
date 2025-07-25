@@ -132,7 +132,7 @@ impl BreakpointManager {
         
         // Update hit count
         if self.pc_breakpoints.contains(&pc) {
-            let count = self.hit_counts.get(&pc).unwrap_or(&0) + 1;
+            let _count = self.hit_counts.get(&pc).unwrap_or(&0) + 1;
             // Note: In a mutable context, we would update hit_counts here
         }
         
@@ -179,12 +179,12 @@ impl BreakpointManager {
                 reg_value >= *min && reg_value <= *max
             }
             
-            BreakpointCondition::MemoryEquals { address, value } => {
+            BreakpointCondition::MemoryEquals { address: _, value: _ } => {
                 // Note: This would need access to memory bus in real implementation
                 false
             }
             
-            BreakpointCondition::HitCount { count } => {
+            BreakpointCondition::HitCount { count: _ } => {
                 // Note: This would need mutable access to hit counts
                 false
             }

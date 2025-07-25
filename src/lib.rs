@@ -9,6 +9,7 @@ pub mod ppu;
 pub mod savestate;
 pub mod config;
 pub mod debug;
+pub mod error;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
@@ -17,8 +18,9 @@ pub mod wasm;
 pub mod frontend;
 
 pub use emulator::Emulator;
+pub use error::EmulatorError;
 
-pub type Result<T> = std::result::Result<T, anyhow::Error>;
+pub type Result<T> = std::result::Result<T, EmulatorError>;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;

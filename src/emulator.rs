@@ -5,7 +5,7 @@ use crate::dma::DmaController;
 use crate::input::Input;
 use crate::memory::Bus;
 use crate::ppu::Ppu;
-use crate::savestate::{SaveState, MemoryState};
+use crate::savestate::SaveState;
 use crate::Result;
 use log::{debug, info};
 
@@ -269,5 +269,22 @@ impl Emulator {
     
     pub fn get_frame_count(&self) -> u64 {
         self.ppu.get_frame_count()
+    }
+    
+    // SRAM access methods
+    pub fn load_sram(&mut self, sram_data: &[u8]) -> Result<()> {
+        if let Some(cartridge) = self.cartridge.as_mut() {
+            cartridge.load_sram(sram_data)?;
+            info!("Loaded SRAM ({} bytes)", sram_data.len());
+        }
+        Ok(())
+    }
+    
+    pub fn get_sram(&self) -> Option<Vec<u8>> {
+        if let Some(cartridge) = self.cartridge.as_ref() {
+            cartridge.get_sram().map(|s| s.to_vec())
+        } else {
+            None
+        }
     }
 }

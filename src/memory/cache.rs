@@ -75,7 +75,7 @@ impl MemoryCache {
         let line_idx = Self::get_line_index(address);
         let tag = Self::get_tag(address);
         let base = line_idx * CACHE_LINE_SIZE;
-        let line_base = (address / CACHE_LINE_SIZE as u32) * CACHE_LINE_SIZE as u32;
+        let _line_base = (address / CACHE_LINE_SIZE as u32) * CACHE_LINE_SIZE as u32;
         
         // Copy data to cache line
         let copy_len = data.len().min(CACHE_LINE_SIZE);
