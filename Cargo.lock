@@ -372,6 +372,7 @@ dependencies = [
  "flate2",
  "js-sys",
  "log",
+ "once_cell",
  "pollster",
  "serde",
  "thiserror",

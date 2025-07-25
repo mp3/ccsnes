@@ -1,7 +1,7 @@
 use crate::memory::Bus;
 use crate::Result;
 use crate::cpu::registers::CpuRegisters;
-use crate::cpu::instructions::decode_opcode;
+use crate::cpu::decode_table::decode_opcode_fast;
 use crate::cpu::execute::execute_instruction;
 use crate::savestate::CpuState;
 
@@ -49,8 +49,8 @@ impl Cpu {
         let opcode = bus.read8(self.registers.pc);
         self.registers.increment_pc(1);
         
-        // Decode instruction
-        if let Some(info) = decode_opcode(opcode) {
+        // Decode instruction using optimized lookup table
+        if let Some(info) = decode_opcode_fast(opcode) {
             // Execute instruction
             let cycles = execute_instruction(&mut self.registers, bus, &info)?;
             self.cycles += cycles as u64;

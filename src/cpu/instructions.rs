@@ -121,7 +121,7 @@ pub enum Instruction {
     PER,    // Push Effective Relative Address
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct InstructionInfo {
     pub instruction: Instruction,
     pub addressing_mode: AddressingMode,
