@@ -7,6 +7,8 @@ pub mod input;
 pub mod memory;
 pub mod ppu;
 pub mod savestate;
+pub mod config;
+pub mod debug;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
