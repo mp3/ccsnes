@@ -16,6 +16,17 @@ pub struct CartridgeHeader {
     pub coprocessor: CoprocessorType,
 }
 
+#[derive(Debug, Clone)]
+pub struct RomInfo {
+    pub title: String,
+    pub mapper_type: MapperType,
+    pub rom_size: usize,
+    pub sram_size: usize,
+    pub region: Region,
+    pub version: u8,
+    pub coprocessor: CoprocessorType,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Region {
     Japan,

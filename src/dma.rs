@@ -569,4 +569,84 @@ impl DmaController {
             _ => {}
         }
     }
+    
+    // Save state functionality
+    pub fn save_state(&self) -> crate::savestate::DmaState {
+        use crate::savestate::{DmaState, DmaChannelState};
+        
+        let channel_states: Vec<DmaChannelState> = self.channels.iter().map(|ch| {
+            DmaChannelState {
+                enabled: false, // Will be set from enable registers
+                hdma_enabled: false, // Will be set from enable registers
+                direction: if ch.is_direction_b_to_a() { 1 } else { 0 },
+                indirect: ch.is_indirect_hdma(),
+                reverse_transfer: false, // TODO: Implement proper detection
+                fixed_transfer: !ch.is_address_increment(),
+                transfer_mode: ch.control & 0x07,
+                b_address: ch.b_address,
+                a_address: ch.a_address,
+                a_bank: ch.a_bank,
+                transfer_size: ch.transfer_size,
+                indirect_bank: ch.indirect_bank,
+                hdma_line_counter: ch.line_counter,
+                hdma_address: ch.table_address,
+                hdma_completed: ch.hdma_completed,
+            }
+        }).collect();
+        
+        // Set enable flags from enable registers
+        let mut state = DmaState {
+            channels: channel_states,
+        };
+        
+        for (i, ch_state) in state.channels.iter_mut().enumerate() {
+            ch_state.enabled = (self.dma_enable & (1 << i)) != 0;
+            ch_state.hdma_enabled = (self.hdma_enable & (1 << i)) != 0;
+        }
+        
+        state
+    }
+    
+    pub fn load_state(&mut self, state: &crate::savestate::DmaState) {
+        // Reset enable registers
+        self.dma_enable = 0;
+        self.hdma_enable = 0;
+        
+        for (i, ch_state) in state.channels.iter().enumerate() {
+            if i < 8 {
+                let channel = &mut self.channels[i];
+                
+                // Reconstruct control register
+                let mut control = ch_state.transfer_mode & 0x07;
+                if ch_state.indirect {
+                    control |= 0x40;
+                }
+                if ch_state.direction != 0 {
+                    control |= 0x80;
+                }
+                if ch_state.fixed_transfer {
+                    control |= 0x08; // Fixed addressing
+                }
+                
+                channel.control = control;
+                channel.b_address = ch_state.b_address;
+                channel.a_address = ch_state.a_address;
+                channel.a_bank = ch_state.a_bank;
+                channel.transfer_size = ch_state.transfer_size;
+                channel.indirect_bank = ch_state.indirect_bank;
+                channel.line_counter = ch_state.hdma_line_counter;
+                channel.table_address = ch_state.hdma_address;
+                channel.hdma_completed = ch_state.hdma_completed;
+                channel.hdma_active = ch_state.hdma_enabled;
+                
+                // Set enable flags
+                if ch_state.enabled {
+                    self.dma_enable |= 1 << i;
+                }
+                if ch_state.hdma_enabled {
+                    self.hdma_enable |= 1 << i;
+                }
+            }
+        }
+    }
 }

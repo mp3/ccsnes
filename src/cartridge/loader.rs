@@ -149,4 +149,16 @@ impl Cartridge {
         }
     }
     
+    pub fn get_info(&self) -> crate::cartridge::header::RomInfo {
+        crate::cartridge::header::RomInfo {
+            title: self.header.title.clone(),
+            mapper_type: self.header.mapper_type,
+            rom_size: self.header.rom_size,
+            sram_size: self.header.sram_size,
+            region: self.header.region,
+            version: self.header.version,
+            coprocessor: self.header.coprocessor,
+        }
+    }
+    
 }

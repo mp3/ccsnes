@@ -84,6 +84,53 @@ impl SnesEmulator {
         Ok(())
     }
 
+    #[wasm_bindgen]
+    pub fn save_state(&self) -> Result<Vec<u8>, JsValue> {
+        console::log_1(&"Creating save state".into());
+        
+        let state = self.emulator.save_state()
+            .map_err(|e| JsValue::from_str(&format!("Failed to create save state: {}", e)))?;
+        
+        // Serialize to bytes using bincode
+        let serialized = bincode::serialize(&state)
+            .map_err(|e| JsValue::from_str(&format!("Failed to serialize save state: {}", e)))?;
+        
+        console::log_1(&format!("Save state created ({} bytes)", serialized.len()).into());
+        Ok(serialized)
+    }
+
+    #[wasm_bindgen]
+    pub fn load_state(&mut self, state_data: &[u8]) -> Result<(), JsValue> {
+        console::log_1(&format!("Loading save state ({} bytes)", state_data.len()).into());
+        
+        // Deserialize from bytes using bincode
+        let state = bincode::deserialize(state_data)
+            .map_err(|e| JsValue::from_str(&format!("Failed to deserialize save state: {}", e)))?;
+        
+        self.emulator.load_state(&state)
+            .map_err(|e| JsValue::from_str(&format!("Failed to load save state: {}", e)))?;
+        
+        console::log_1(&"Save state loaded successfully".into());
+        Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub fn get_rom_info(&self) -> String {
+        if let Some(info) = self.emulator.get_rom_info() {
+            format!("Title: {}\nMapper: {:?}\nRegion: {:?}\nSize: {} KB", 
+                info.title, info.mapper_type, info.region, info.rom_size / 1024)
+        } else {
+            "No ROM loaded".to_string()
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn get_performance_stats(&self) -> String {
+        format!("CPU Cycles: {}\nFrame: {}", 
+            self.emulator.get_cycle_count(),
+            self.emulator.get_frame_count())
+    }
+
     fn render_to_canvas(&self) -> Result<(), JsValue> {
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();

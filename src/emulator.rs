@@ -200,10 +200,8 @@ impl Emulator {
         // Save CPU state
         state.cpu = self.cpu.save_state();
         
-        // Save PPU state (simplified for now)
-        state.ppu.current_scanline = self.ppu.get_current_scanline();
-        state.ppu.frame_count = self.ppu.get_frame_count();
-        // TODO: Save more detailed PPU state
+        // Save PPU state
+        state.ppu = self.ppu.save_state();
         
         // Save APU state
         state.apu = self.apu.save_state();
@@ -212,7 +210,7 @@ impl Emulator {
         state.memory = self.bus.save_memory_state();
         
         // Save DMA state
-        // TODO: Implement DMA save state
+        state.dma = self.dma.save_state();
         
         // Save emulator state
         state.cycles = self.cycles;
@@ -225,7 +223,7 @@ impl Emulator {
         self.cpu.load_state(&state.cpu);
         
         // Load PPU state
-        // TODO: Load detailed PPU state
+        self.ppu.load_state(&state.ppu);
         
         // Load APU state
         self.apu.load_state(&state.apu);
@@ -234,7 +232,7 @@ impl Emulator {
         self.bus.load_memory_state(&state.memory)?;
         
         // Load DMA state
-        // TODO: Implement DMA load state
+        self.dma.load_state(&state.dma);
         
         // Load emulator state
         self.cycles = state.cycles;
@@ -254,5 +252,22 @@ impl Emulator {
         self.load_state(&state)?;
         info!("Save state loaded from: {}", path);
         Ok(())
+    }
+    
+    // Information and stats methods
+    pub fn get_rom_info(&self) -> Option<crate::cartridge::header::RomInfo> {
+        if let Some(cartridge) = self.cartridge.as_ref() {
+            Some(cartridge.get_info())
+        } else {
+            None
+        }
+    }
+    
+    pub fn get_cycle_count(&self) -> u64 {
+        self.cycles
+    }
+    
+    pub fn get_frame_count(&self) -> u64 {
+        self.ppu.get_frame_count()
     }
 }
