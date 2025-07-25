@@ -75,6 +75,7 @@ criterion = "0.5"
 
 [features]
 default = []
+wasm = []
 wee_alloc = ["dep:wee_alloc"]
 
 [package.metadata.wasm-pack.profile.release]

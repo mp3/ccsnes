@@ -42,7 +42,11 @@ const keyMap = {
 
 // Initialize the emulator
 async function initEmulator() {
-    document.getElementById('loading').style.display = 'block';
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = 'loading';
+    loadingDiv.textContent = 'Loading CCSNES...';
+    loadingDiv.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);';
+    document.body.appendChild(loadingDiv);
     
     try {
         await init();
@@ -69,7 +73,7 @@ function loadROM(arrayBuffer) {
             emulator.free();
         }
         
-        emulator = new WasmEmulator();
+        emulator = new WasmEmulator('screen');
         emulator.load_rom(romData);
         
         isPaused = false;
@@ -109,24 +113,16 @@ function startEmulation() {
         
         // Run emulation
         try {
-            // Set controller state
-            emulator.set_input(0, currentButtons);
+            // Run one frame (handles rendering internally)
+            emulator.run_frame();
             
-            // Step one frame
-            emulator.step_frame();
-            
-            // Get and render video
-            const frameBuffer = emulator.get_frame_buffer_rgba();
-            imageData.data.set(frameBuffer);
-            ctx.putImageData(imageData, 0, 0);
-            
-            // Process audio
-            processAudio();
+            // TODO: Process audio when implemented
             
             // Update FPS counter
             fpsFrames++;
             if (currentTime - fpsTime >= 1000) {
-                document.getElementById('fps').textContent = fpsFrames;
+                const fpsElement = document.getElementById('fps');
+                if (fpsElement) fpsElement.textContent = fpsFrames;
                 fpsFrames = 0;
                 fpsTime = currentTime;
             }
@@ -186,16 +182,12 @@ function resumeEmulation() {
 
 // Update control button states
 function updateControlStates() {
-    const pauseBtn = document.getElementById('pause-btn');
+    const playPauseBtn = document.getElementById('play-pause-btn');
     const resetBtn = document.getElementById('reset-btn');
-    const saveBtn = document.getElementById('save-state-btn');
-    const loadBtn = document.getElementById('load-state-btn');
     
-    pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
-    pauseBtn.disabled = !emulator;
+    playPauseBtn.textContent = isPaused ? 'Play' : 'Pause';
+    playPauseBtn.disabled = !emulator;
     resetBtn.disabled = !emulator;
-    saveBtn.disabled = !emulator;
-    loadBtn.disabled = !emulator;
 }
 
 // Event handlers
@@ -204,6 +196,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // ROM input
     const romInput = document.getElementById('rom-input');
+    const loadRomBtn = document.getElementById('load-rom-btn');
+    
+    loadRomBtn.addEventListener('click', () => {
+        romInput.click();
+    });
+    
     romInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (file) {
@@ -211,6 +209,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             reader.onload = (e) => {
                 if (loadROM(e.target.result)) {
                     console.log('ROM loaded:', file.name);
+                    document.getElementById('rom-status').textContent = file.name;
                 }
             };
             reader.readAsArrayBuffer(file);
@@ -218,7 +217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     
     // Control buttons
-    document.getElementById('pause-btn').addEventListener('click', () => {
+    document.getElementById('play-pause-btn').addEventListener('click', () => {
         if (isPaused) {
             resumeEmulation();
         } else {
@@ -241,35 +240,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
     
-    // Save/Load state
-    let saveState = null;
-    
-    document.getElementById('save-state-btn').addEventListener('click', () => {
-        if (emulator) {
-            saveState = emulator.save_state();
-            console.log('State saved');
-        }
-    });
-    
-    document.getElementById('load-state-btn').addEventListener('click', () => {
-        if (emulator && saveState) {
-            emulator.load_state(saveState);
-            console.log('State loaded');
-        }
-    });
     
     // Keyboard input
     document.addEventListener('keydown', (event) => {
-        if (keyMap.hasOwnProperty(event.code)) {
-            event.preventDefault();
-            currentButtons |= keyMap[event.code];
+        if (emulator && !isPaused) {
+            emulator.handle_key_down(event);
+            if (keyMap.hasOwnProperty(event.code)) {
+                event.preventDefault();
+            }
         }
     });
     
     document.addEventListener('keyup', (event) => {
-        if (keyMap.hasOwnProperty(event.code)) {
-            event.preventDefault();
-            currentButtons &= ~keyMap[event.code];
+        if (emulator) {
+            emulator.handle_key_up(event);
+            if (keyMap.hasOwnProperty(event.code)) {
+                event.preventDefault();
+            }
         }
     });
     

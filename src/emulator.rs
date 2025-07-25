@@ -271,6 +271,10 @@ impl Emulator {
         self.ppu.get_frame_count()
     }
     
+    pub fn get_frame_buffer(&self) -> &[u8] {
+        self.ppu.get_frame_buffer()
+    }
+    
     // SRAM access methods
     pub fn load_sram(&mut self, sram_data: &[u8]) -> Result<()> {
         if let Some(cartridge) = self.cartridge.as_mut() {

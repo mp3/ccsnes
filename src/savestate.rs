@@ -212,6 +212,28 @@ impl SaveState {
         
         Ok(state)
     }
+    
+    /// Serialize save state to bytes
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        bincode::serialize(self)
+            .map_err(|e| EmulatorError::SaveStateError(format!("Failed to serialize save state: {}", e)))
+    }
+    
+    /// Deserialize save state from bytes
+    pub fn from_bytes(data: &[u8]) -> Result<Self> {
+        let state: SaveState = bincode::deserialize(data)
+            .map_err(|e| EmulatorError::SaveStateError(format!("Failed to deserialize save state: {}", e)))?;
+            
+        // Check version compatibility
+        if state.version != SAVE_STATE_VERSION {
+            return Err(EmulatorError::SaveStateError(format!(
+                "Save state version mismatch: expected {}, got {}",
+                SAVE_STATE_VERSION, state.version
+            )));
+        }
+        
+        Ok(state)
+    }
 }
 
 // Default implementations
